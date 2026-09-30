@@ -109,6 +109,65 @@ synthetic_data = ctgan.sample(1000)
 Dua, D. and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml].
 Irvine, CA: University of California, School of Information and Computer Science.
 
+# Command-line usage
+
+From a source checkout, create an environment and install the package dependencies first:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+If creating the environment reports that `ensurepip` is unavailable, and your system already
+has pip, use this alternative:
+
+```bash
+python3 -m venv --without-pip .venv
+python3 -m pip --python .venv/bin/python install pip
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+Activate the environment again with `source .venv/bin/activate` in each new terminal.
+The examples below use `input.csv` as a placeholder; replace it with an existing dataset path.
+
+Train on CSV data and generate 1,000 synthetic rows:
+
+```bash
+python -m ctgan input.csv synthetic.csv --infer-discrete --epochs 300 --num-samples 1000 --save model.pkl
+```
+
+`--infer-discrete` treats text and boolean columns as categorical. Numeric columns remain
+continuous. For numeric category codes, use an explicit list such as `--discrete city,status_code`
+instead, including every categorical column. Inference cannot be combined with `--discrete`,
+`--metadata`, or `--tsv`. Dates, identifiers, and free text still require deliberate preprocessing;
+inference does not provide a universal schema for these types.
+
+CTGAN already encodes categories as one-hot vectors and normalizes continuous values internally.
+There is no need to replace categories with arbitrary numbers before training.
+
+Reuse a saved model without retraining:
+
+```bash
+python -m ctgan input.csv synthetic.csv --load model.pkl --num-samples 1000
+```
+
+The input path is still required and read; its row count supplies the default sample count when
+`--num-samples` is omitted. Training settings apply only when creating a new model.
+`--no-header` reads and writes headerless CSV files; explicit discrete columns then use zero-based
+indices. Sample counts, epochs, embedding dimensions, and layer sizes must be positive integers,
+and batch sizes must be divisible by 10.
+
+TSV mode requires `--tsv --metadata schema.txt`. The schema has one line per column, for example
+`C 0 100` for a continuous column and `D {red blue}` for a categorical column. Output uses tabs and
+restores the category labels. CSV metadata instead uses JSON with a `columns` list containing
+`name` and `type` entries; types other than `continuous` are treated as categorical.
+
+Conditional sampling requires both `--sample_condition_column` and
+`--sample_condition_column_value`. It increases the likelihood of the requested category without
+guaranteeing it for every row.
+
 # Join our community
 
 Join our [forum](https://forum.datacebo.com/) to discuss more about CTGAN, ask questions, and receive help.

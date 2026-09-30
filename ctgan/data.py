@@ -1,13 +1,18 @@
 """Data loading."""
 
 import json
+from os import PathLike
 
 import numpy as np
 import pandas as pd
 
 
-def read_csv(csv_filename, meta_filename=None, header=True, discrete=None):
-    """Read a csv file."""
+def read_csv(csv_filename, meta_filename=None, header=True, discrete=None, infer_discrete=False):
+    """Read CSV, optionally treating text and boolean columns as categorical.
+
+    Metadata and explicit discrete columns take precedence over inference.
+    Numeric category codes must be specified explicitly.
+    """
     data = pd.read_csv(csv_filename, header='infer' if header else None)
 
     if meta_filename:
@@ -23,14 +28,17 @@ def read_csv(csv_filename, meta_filename=None, header=True, discrete=None):
         if not header:
             discrete_columns = [int(i) for i in discrete_columns]
 
+    elif infer_discrete:
+        discrete_columns = list(data.select_dtypes(include=['object', 'string', 'bool']).columns)
+
     else:
         discrete_columns = []
 
     return data, discrete_columns
 
 
-def read_tsv(data_filename, meta_filename):
-    """Read a tsv file."""
+def read_tsv_metadata(meta_filename):
+    """Read the column schema used by TSV input and output."""
     with open(meta_filename) as f:
         column_info = f.readlines()
 
@@ -49,11 +57,19 @@ def read_tsv(data_filename, meta_filename):
             discrete.append(idx)
             column_info.append(item[1:])
 
-    meta = {
+    return {
         'continuous_columns': continuous,
         'discrete_columns': discrete,
         'column_info': column_info,
     }
+
+
+def read_tsv(data_filename, meta_filename):
+    """Read a tsv file."""
+    meta = read_tsv_metadata(meta_filename)
+    continuous = meta['continuous_columns']
+    discrete = meta['discrete_columns']
+    column_info = meta['column_info']
 
     with open(data_filename) as f:
         lines = f.readlines()
@@ -75,14 +91,18 @@ def read_tsv(data_filename, meta_filename):
 
 
 def write_tsv(data, meta, output_filename):
-    """Write to a tsv file."""
+    """Write TSV using a metadata dictionary or metadata file path."""
+    if isinstance(meta, (str, PathLike)):
+        meta = read_tsv_metadata(meta)
+
     with open(output_filename, 'w') as f:
         for row in data:
+            values = []
             for idx, col in enumerate(row):
                 if idx in meta['continuous_columns']:
-                    print(col, end=' ', file=f)
+                    values.append(str(col))
                 else:
                     assert idx in meta['discrete_columns']
-                    print(meta['column_info'][idx][int(col)], end=' ', file=f)
+                    values.append(meta['column_info'][idx][int(col)])
 
-            print(file=f)
+            f.write('\t'.join(values) + '\n')
